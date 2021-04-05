@@ -2,15 +2,22 @@ package.path = "rawterm/rawterm.lua"
 local rawterm = require("rawterm")
 local string = require("string")
 
-BlockChar = "x"
+BlockChar = "o"
 WaterChar = "~"
+DeathChar = "x"
+WinChar = "w"
 WaterColor = "\027[036m"
-BlockColor = "\027[040m\027[030m"
+BlockColor = "\027[030;40m"
+DeathColor = "\027[031m"
+WinColor = "\027[032m"
 PlayerColor = "\027[033m"
 PlayerPosY = 4
 PlayerPosX = 4
 LastPlayerPosY = PlayerPosY
 LastPlayerPosX = PlayerPosX
+Death = 0
+Winner = 0
+Started = 0
 
 Banner = {
   "                          ▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒█▓    ",
@@ -44,37 +51,54 @@ Banner = {
   "               ▓░░░░░░░░▒▒░░░░▒▓▓░░░░▓░░░░░░░░░░░░░░░░░░░░░░░░░░",
   "              ▓░░▒░░▒▒░░░░▓░░▒▒░░░░░░▓░░░░░░░░░░░░░░░░░░░░░░░░░░"
 }
+
 Map = {
-  "                                    ///////////////////// ///////////////////// ////////////////////",
-  "                               ////  ///////////////// ///////////////////// ////////////////////   ",
-  "////////////////// ////////////////////////////////////// ///////////////////// ////////////////////",
-  "                                        ///////////////// ///////////////////// ////////////////////",
-  "                                        ///////////////// ///////////////////// ////////////////////",
-  "                                        ///////////////// ///////////////////// ////////////////////",
-  "              x                         ////////////////////////////////////////////////////////////",
-  "              x                       x ////////////////////////////////////////////////////////////",
-  "              xxxxxxxx                  ////////////////////////////////////////////////////////////",
-  "/////////////////////x//////////////////////////////////////////////////////////////////////////////",
-  "/////////////////////x/////////////////////~////////////////////////////////////////////////////////",
-  "//////////////xxxxxxxx//////////////////////~///////////////////////////////////////////////////////",
-  "////////////////////xx//////////////////////~~////~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~////////////////////",
-  "/////////////////////////////////////////////~////~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~////////////////////",
-  "//////////////////////////////////////////////////~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~////////////////////",
-  "//////////////////////////////////////////////////~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~////////////////////",
-  "////////////////x///////////////////////////////////////////////////////////////////////////////////",
-  "////////////////////////////////////////////////////////////////////////////////////////////////////",
-  "////////////////////////////////////////////////////////////////////////////////////////////////////",
-  "////////////////////////////////////////////////////////////////////////////////////////////////////",
-  "////////////////////////////////////////////////////////////////////////////////////////////////////",
-  "                                    ///////////////////// ///////////////////// ////////////////////",
-  "                               ////  ///////////////// ///////////////////// ////////////////////   ",
-  "////////////////// ////////////////////////////////////// ///////////////////// ////////////////////",
-  "                                    ///////////////////// ///////////////////// ////////////////////",
-  "                               ////  ///////////////// ///////////////////// ////////////////////   ",
-  "////////////////// ////////////////////////////////////// ///////////////////// ////////////////////",
-  "                                    ///////////////////// ///////////////////// ////////////////////",
-  "                               ////  ///////////////// ///////////////////// ////////////////////   ",
-  "////////////////// ////////////////////////////////////// ///////////////////// ////////////////////"
+  "                       x######                                                                      ",
+  "            ######    x#######       #####                                                          ",
+  "        ##########x/#####/#####  #############                                                      ",
+  "    ############/x#########--#####################                                                  ",
+  "  ####         #x####################          #####                                                ",
+  " ##          ###o       #########/@@              ###                                               ",
+  "#          ###x         -.##/`.#/#####               ##                                             ",
+  "          ##x            |$/  |,-. ####                 #                                           ",
+  "         ##           oo,'$|_,'|  |  ###                                                            ",
+  "         #              ooooo$$`._/   ##                               xxxx                         ",
+  "                          $$o$$_/     ##                            xxxxxxxxxx                      ",
+  "                          $$o$$        #                           xxxxxxxxxxxx                     ",
+  "                          $$o$$                                     xxxxxxxxxx                      ",
+  "                          $$o$$                                        xxxx                         ",
+  "                          $$o$$                                                                     ",
+  "                          $$o$$                                                                     ",
+  "                         $$o$$                                                                      ",
+  "                        $$o$$                                                                       ",
+  "                        $o$$$                                                                       ",
+  "~~~~~~~~~~~~~~~~~~~~~~~$$o$$~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+  "   ~      ~  ~    ~  ~ $$o$$  ~   ~       ~          ~                                              ",
+  "  ~            ~ ^   ~ $$o$$~             _______       ~                                           ",
+  "_______________________$$o$$_____________///////|___________________________________________________",
+  "                       $$o$$            /////// |                                                   ",
+  "    _______            $$o$$           ///////  |                                                   ",
+  "   /Q%=//,/            $$o$$           |#####|  /                                                   ",
+  "    `------`           $$o$$           |#####| /|                                                   ",
+  "                       $$o$$           |#####|/                                             w       ",
+  "                      $$$o$$$          ||   ||                                                      ",
+  "#####################$$$$$$$$$######################################################################",
+}
+
+GameOverMsg = {
+  "  ____                         ___",
+  " / ___| __ _ _ __ ___   ___   / _ \\__   _____ _ __",
+  "| |  _ / _` | '_ ` _ \\ / _ \\ | | | \\ \\ / / _ \\ '__|",
+  "| |_| | (_| | | | | | |  __/ | |_| |\\ V /  __/ |",
+  " \\____|\\__,_|_| |_| |_|\\___|  \\___/  \\_/ \\___|_|",
+}
+
+WonGameMsg = {
+  "__        __   _ _       _                  _",
+  "\\ \\      / /__| | |   __| | ___  _ __   ___| |",
+  " \\ \\ /\\ / / _ \\ | |  / _` |/ _ \\| '_ \\ / _ \\ |",
+  "  \\ V  V /  __/ | | | (_| | (_) | | | |  __/_|",
+  "   \\_/\\_/ \\___|_|_|  \\__,_|\\___/|_| |_|\\___(_)",
 }
 
 -- get map width and height
@@ -85,8 +109,15 @@ MapWidth = Map[1]:len()
 
 -- enable raw mode for getting input from keyboard
 rawterm.enableRawMode({
-  carriageOut = "\n"
+  carriageOut = "\n",
+  readtimeout = 2
 })
+
+function Wait(msec)
+   local t = os.clock()
+   repeat
+   until os.clock() > t + msec * 1e-3
+end
 
 
 function Clear()
@@ -106,11 +137,49 @@ function Clear()
 end
 
 function PrintBanner()
-    -- print out the banner
+  -- print out the banner
   for row, data in ipairs(Banner) do
     io.write("\027[" .. row .. ";37H")
     io.write(data)
   end
+end
+
+function WonGame()
+  -- disable raw mode while waiting
+  rawterm.disableRawMode()
+  Clear()
+  -- put the cursor int the middle and print the message
+  for row, data in ipairs(WonGameMsg) do
+    io.write("\027[" .. row+10 .. ";22H")
+    io.write(data)
+  end
+  io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H\n")
+  -- wait a few seconds
+  Wait(2000)
+  -- enable raw mode again
+  rawterm.enableRawMode({
+    carriageOut = "\n",
+    readtimeout = 2
+  })
+end
+
+function GameOver()
+  -- disable raw mode while waiting
+  rawterm.disableRawMode()
+  Clear()
+  -- put the cursor int the middle and print the message
+  for row, data in ipairs(GameOverMsg) do
+    io.write("\027[" .. row+10 .. ";22H")
+    io.write(data)
+  end
+  io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H\n")
+  -- wait a few seconds
+  Wait(2000)
+  -- enable raw mode again
+  rawterm.enableRawMode({
+    carriageOut = "\n",
+    readtimeout = 2
+  })
 end
 
 function DrawPlayer(position_y, position_x, direction)
@@ -182,11 +251,17 @@ function GameLoop()
   local playerDir = 1
   local char
 
+  -- player is alive and didn't win yet
+  Death = 0
+  Winner = 0
+
   -- print out the whole map
   for _, data in ipairs(Map) do
-    -- print walls as black blocks
+    -- print walls as black boxes
     local mapRow = data:gsub(BlockChar, BlockColor..BlockChar.."\027[0m")
+    -- print water blue
     mapRow = mapRow:gsub(WaterChar, WaterColor..WaterChar.."\027[0m")
+    mapRow = mapRow:gsub(DeathChar, DeathColor..DeathChar.."\027[0m")
     io.write(mapRow, "\n")
   end
 
@@ -198,8 +273,8 @@ function GameLoop()
     -- put the cursor at the map's end
     io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H")
 
-    -- wait for input
-    char = io.read(1) or "\0"
+    -- wait for input or press the "down key"
+    char = io.read(1) or "j"
 
     -- back to menu
     if char == "p" then
@@ -212,21 +287,40 @@ function GameLoop()
     -- move the player, detect walls and change direction
     playerDir = MovePlayer(char,playerDir)
 
+    -- kill player and return to menu
+    if string.find(string.sub(Map[PlayerPosY],(PlayerPosX),(PlayerPosX+5)), DeathChar) ~= nil
+    or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), DeathChar) ~= nil
+    then
+      Death = 1
+      GameOver()
+      Clear()
+      PrintBanner()
+      break
+    end
+
+    if string.find(string.sub(Map[PlayerPosY],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
+    or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
+    then
+      Winner = 1
+      WonGame()
+      Clear()
+      PrintBanner()
+      break
+    end
+
   end
 end
 
 function MainMenu()
   local menu = {
     " ",
-    " ",
     "New Game",
     "Resume Game",
-    "Load Game",
     "Quit Game",
     " ",
-    " "
   }
-  local menuIndex = 3
+  local menuIndex = 2
+  local char
 
   -- clear terminal
   Clear()
@@ -237,33 +331,53 @@ function MainMenu()
   while true do
     -- show menu at 15th line
     io.write("\027[12;0H")
+    io.write("h,j,k,l to move, p for pause\n")
     io.write("-------------------------\n",
-            "   ", menu[menuIndex - 2] .. "          \n",
             "   ", menu[menuIndex - 1] .. "          \n",
             "-->", menu[menuIndex] .. "          \n",
             "   ", menu[menuIndex + 1] .. "          \n",
-            "   ", menu[menuIndex + 2] .. "          \n",
             "-------------------------\n")
 
     -- wait for input
-    local char = io.read(1) or "\0"
+    char = io.read(1) or "\0"
 
     -- test characters
-    if char == "j" and menuIndex < 6 then
+    if char == "j" and menuIndex < 4 then
       menuIndex = menuIndex + 1
-    elseif char == "k" and menuIndex > 3 then
+    elseif char == "k" and menuIndex > 2 then
       menuIndex = menuIndex - 1
     elseif char == "l" then
+      char = "\0"
       if menu[menuIndex] == "New Game" then
         PlayerPosX = 4
         PlayerPosY = 4
+        Started = 1
         GameLoop()
       elseif menu[menuIndex] == "Resume Game" then
-        GameLoop()
-      elseif menu[menuIndex] == "Load Game" then
-        GameLoop()
+        if Death == 1 then
+          io.write("You died, start a new game\n")
+        elseif Winner == 1 then
+          io.write("You won! what else do you want?\n")
+        elseif Started == 0 then
+          io.write("Start the game first\n")
+        else
+          GameLoop()
+        end
       elseif menu[menuIndex] == "Quit Game" then
-        break
+        Clear()
+        io.write("do you really want to quit? (y)(n)")
+        while true do
+          char = io.read(1) or "\0"
+          if char == "y" or char == "n" then
+            break
+          end
+        end
+        if char == "y" then
+          break
+        else
+          Clear()
+          PrintBanner()
+        end
       end
     end
  end
