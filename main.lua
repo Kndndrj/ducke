@@ -11,8 +11,8 @@ BlockColor = "\027[030;40m"
 DeathColor = "\027[031m"
 WinColor = "\027[032m"
 PlayerColor = "\027[033m"
-StartPosY = 4
-StartPosX = 4
+StartPosY = 29
+StartPosX = 1
 PlayerPosY = StartPosY
 PlayerPosX = StartPosX
 LastPlayerPosY = PlayerPosY
@@ -141,6 +141,17 @@ WonGameMsg = {
   "   \\_/\\_/ \\___|_|_|  \\__,_|\\___/|_| |_|\\___(_)",
 }
 
+NextLevelMsg = {
+  "######################################################",
+  "#                                                    #",
+  "#                  Level completed!                  #",
+  "#                                                    #",
+  "#             y - proceed to the next level          #",
+  "#             n - return to menu                     #",
+  "#                                                    #",
+  "######################################################",
+}
+
 -- enable raw mode for getting input from keyboard
 rawterm.enableRawMode({
   carriageOut = "\n",
@@ -152,7 +163,6 @@ function Wait(msec)
    repeat
    until os.clock() > t + msec * 1e-3
 end
-
 
 function Clear()
   -- clear terminal
@@ -183,11 +193,15 @@ function PrintMap()
   io.write("\027[H")
   -- print out the whole map
   for _, data in ipairs(Map) do
-    -- print walls as black boxes
+    -- print different colors
+    -- blocks...
     local mapRow = data:gsub(BlockChar, BlockColor..BlockChar.."\027[0m")
-    -- print water blue
+    -- ...water...
     mapRow = mapRow:gsub(WaterChar, WaterColor..WaterChar.."\027[0m")
+    -- ...death...
     mapRow = mapRow:gsub(DeathChar, DeathColor..DeathChar.."\027[0m")
+    -- ...win
+    mapRow = mapRow:gsub(WinChar, WinColor..WinChar.."\027[0m")
     io.write(mapRow, "\n")
   end
 end
@@ -209,6 +223,35 @@ function WonGame()
     carriageOut = "\n",
     readtimeout = 2
   })
+end
+
+function NextLevel()
+  Clear()
+
+  -- change the map and reset the position
+  Map = Levels[Level]
+  PlayerPosX = StartPosX
+  PlayerPosY = StartPosY
+
+  -- put the cursor int the middle and print the message
+  for row, data in ipairs(NextLevelMsg) do
+    io.write("\027[" .. row+10 .. ";22H")
+    io.write(data)
+  end
+
+  io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H\n")
+end
+
+function Gravity(character)
+  -- gravity doesn't work in the water
+  if character == "\0"
+    and PlayerPosY <= (MapHeight - 2)
+    and string.find(string.sub(Map[PlayerPosY+2],(PlayerPosX),(PlayerPosX+5)), BlockChar) == nil
+    and string.find(string.sub(Map[PlayerPosY],(PlayerPosX),(PlayerPosX+5)), WaterChar) == nil
+    and string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), WaterChar) == nil
+    then
+    PlayerPosY = PlayerPosY + 1
+  end
 end
 
 function GameOver()
@@ -314,8 +357,8 @@ function GameLoop()
     -- put the cursor at the map's end
     io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H")
 
-    -- wait for input or press the "down key"
-    char = io.read(1) or "j"
+    -- wait for input
+    char = io.read(1) or "\0"
 
     -- back to menu
     if char == "p" then
@@ -324,6 +367,9 @@ function GameLoop()
       PrintBanner()
       break
     end
+
+    -- apply gravity
+    Gravity(char)
 
     -- move the player, detect walls and change direction
     playerDir = MovePlayer(char,playerDir)
@@ -344,18 +390,32 @@ function GameLoop()
     or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
     then
       Level = Level + 1
-      WonGame()
       if Level == 3 then
+        -- last level completed
+        Winner = 1
+        WonGame()
         Clear()
         PrintBanner()
-        Winner = 1
         break
       else
-        Map = Levels[Level]
-        PlayerPosX = StartPosX
-        PlayerPosY = StartPosY
-        Clear()
-        PrintMap()
+        -- issue a prompt for the next level and change the map
+        NextLevel()
+        while true do
+          char = io.read(1) or "\0"
+          if char == "y" or char == "n" then
+            break
+          end
+        end
+        if char == "y" then
+          -- proceed
+          Clear()
+          PrintMap()
+        else
+          -- return to menu
+          Clear()
+          PrintBanner()
+          break
+        end
       end
     end
 
