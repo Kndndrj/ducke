@@ -4,15 +4,15 @@ local levels = require("levels")
 package.path = "rawterm/rawterm.lua"
 local rawterm = require("rawterm")
 
-BlockChar = "o"
+BlockChar = "|"
 WaterChar = "~"
-DeathChar = "x"
+DeathChar = "*"
 WinChar = "w"
-WaterColor = "\027[036m"
-BlockColor = "\027[030;40m"
-DeathColor = "\027[031m"
-WinColor = "\027[032m"
-PlayerColor = "\027[033m"
+WaterColor = "\027[1;036m"
+BlockColor = "\027[1;032m"
+DeathColor = "\027[1;031m"
+WinColor = "\027[035;45m"
+PlayerColor = "\027[1;033m"
 StartPosY = 29
 StartPosX = 1
 PlayerPosY = StartPosY
@@ -27,6 +27,9 @@ Started = 0
 Level = 1
 -- level map
 Levels = levels.ListOfLevels
+for level in pairs(Levels) do
+  NumberOfLevels = level
+end
 
 -- enable raw mode for getting input from keyboard
 rawterm.enableRawMode({
@@ -101,16 +104,11 @@ function WonGame()
   })
 end
 
-function NextLevel()
+function PrintMessage(message)
   Clear()
 
-  -- change the map and reset the position
-  Map = Levels[Level]
-  PlayerPosX = StartPosX
-  PlayerPosY = StartPosY
-
-  -- put the cursor int the middle and print the message
-  for row, data in ipairs(graphics.NextLevelMsg) do
+  -- put the cursor in the middle and print the message
+  for row, data in ipairs(message) do
     io.write("\027[" .. row+10 .. ";22H")
     io.write(data)
   end
@@ -238,7 +236,6 @@ function GameLoop()
 
     -- back to menu
     if char == "p" then
-      -- clear terminal
       Clear()
       PrintBanner()
       break
@@ -266,7 +263,7 @@ function GameLoop()
     or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
     then
       Level = Level + 1
-      if Level == 3 then
+      if Level == NumberOfLevels+1 then
         -- last level completed
         Winner = 1
         WonGame()
@@ -274,8 +271,12 @@ function GameLoop()
         PrintBanner()
         break
       else
+        -- change the map and reset the position
+        Map = Levels[Level]
+        PlayerPosX = StartPosX
+        PlayerPosY = StartPosY
         -- issue a prompt for the next level and change the map
-        NextLevel()
+        PrintMessage(graphics.NextLevelMsg)
         while true do
           char = io.read(1) or "\0"
           if char == "y" or char == "n" then
@@ -354,7 +355,7 @@ function MainMenu()
         end
       elseif menu[menuIndex] == "Quit Game" then
         Clear()
-        io.write("do you really want to quit? (y)(n)")
+        PrintMessage(graphics.QuitMsg)
         while true do
           char = io.read(1) or "\0"
           if char == "y" or char == "n" then
