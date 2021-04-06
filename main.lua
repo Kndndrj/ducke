@@ -11,13 +11,18 @@ BlockColor = "\027[030;40m"
 DeathColor = "\027[031m"
 WinColor = "\027[032m"
 PlayerColor = "\027[033m"
-PlayerPosY = 4
-PlayerPosX = 4
+StartPosY = 4
+StartPosX = 4
+PlayerPosY = StartPosY
+PlayerPosX = StartPosX
 LastPlayerPosY = PlayerPosY
 LastPlayerPosX = PlayerPosX
+MapHeight = 30
+MapWidth = 100
 Death = 0
 Winner = 0
 Started = 0
+Level = 1
 
 Banner = {
   "                          ▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒█▓    ",
@@ -52,7 +57,7 @@ Banner = {
   "              ▓░░▒░░▒▒░░░░▓░░▒▒░░░░░░▓░░░░░░░░░░░░░░░░░░░░░░░░░░"
 }
 
-Map = {
+Level_1 = {
   "                       x######                                                                      ",
   "            ######    x#######       #####                                                          ",
   "        ##########x/#####/#####  #############                                                      ",
@@ -80,10 +85,45 @@ Map = {
   "    _______            $$o$$           ///////  |                                                   ",
   "   /Q%=//,/            $$o$$           |#####|  /                                                   ",
   "    `------`           $$o$$           |#####| /|                                                   ",
-  "                       $$o$$           |#####|/                                             w       ",
+  "                  w    $$o$$           |#####|/                                             w       ",
   "                      $$$o$$$          ||   ||                                                      ",
   "#####################$$$$$$$$$######################################################################",
 }
+
+Level_2 = {
+  "                       x######                                                                      ",
+  "            ######    x#######       #####                                                          ",
+  "        ##########x/#####/#####  #############                                                      ",
+  "    ############/x#########--#####################                                                  ",
+  "  ####         #x####################          #####                                                ",
+  " ##          ###o       #########/@@              ###                                               ",
+  "#          ###x         -.##/`.#/#####               ##                                             ",
+  "          ##x            |$/  |,-. ####                 #                                           ",
+  "         ##           oo,'$|_,'|  |  ###                                                            ",
+  "         #              ooooo$$`._/   ##                               xxxx                         ",
+  "                          $$o$$_/     ##                            xxxxxxxxxx                      ",
+  "                          $$o$$        #                           xxxxxxxxxxxx                     ",
+  "                          $$o$$                                     xxxxxxxxxx                      ",
+  "                          $$o$$                                        xxxx                         ",
+  "                          $$o$$                                                                     ",
+  "                          $$o$$                                                                     ",
+  "                         $$o$$                                                                      ",
+  "                        $$o$$                                                                       ",
+  "                        $o$$$                                                                       ",
+  "~~~~~~~~~~~~~~~~~~~~~~~$$o$$~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+  "   ~      ~  ~    ~  ~ $$o$$  ~   ~       ~          ~                                              ",
+  "  ~            ~ ^   ~ $$o$$~             _______       ~                                           ",
+  "_______________________$$o$$_____________///////|___________________________________________________",
+  "   jjjjjjjjjjjjjjjjjjjjjjjjjj           /////// |                                                   ",
+  "    _______            $$o$$           ///////  |                                                   ",
+  "   /Q%=//,/            $$o$$           |#####|  /                                                   ",
+  "    `------`           $$o$$           |#####| /|                                                   ",
+  "                    w  $$o$$           |#####|/                                             w       ",
+  "                      $$$o$$$          ||   ||                                                      ",
+  "#####################$$$$$$$$$######################################################################",
+}
+
+Levels = {Level_1, Level_2}
 
 GameOverMsg = {
   "  ____                         ___",
@@ -101,12 +141,6 @@ WonGameMsg = {
   "   \\_/\\_/ \\___|_|_|  \\__,_|\\___/|_| |_|\\___(_)",
 }
 
--- get map width and height
-for row in pairs(Map) do
-  MapHeight = row
-end
-MapWidth = Map[1]:len()
-
 -- enable raw mode for getting input from keyboard
 rawterm.enableRawMode({
   carriageOut = "\n",
@@ -123,7 +157,7 @@ end
 function Clear()
   -- clear terminal
   os.execute("clear")
-  --print out the border (100x30)
+  -- print out the border (100x30)
   for row = 1,MapHeight,1 do
     io.write("\027[" .. row .. ";" .. (MapWidth+1) .. "H")
     io.write("|")
@@ -144,11 +178,25 @@ function PrintBanner()
   end
 end
 
+function PrintMap()
+  -- send cursor home
+  io.write("\027[H")
+  -- print out the whole map
+  for _, data in ipairs(Map) do
+    -- print walls as black boxes
+    local mapRow = data:gsub(BlockChar, BlockColor..BlockChar.."\027[0m")
+    -- print water blue
+    mapRow = mapRow:gsub(WaterChar, WaterColor..WaterChar.."\027[0m")
+    mapRow = mapRow:gsub(DeathChar, DeathColor..DeathChar.."\027[0m")
+    io.write(mapRow, "\n")
+  end
+end
+
 function WonGame()
   -- disable raw mode while waiting
   rawterm.disableRawMode()
   Clear()
-  -- put the cursor int the middle and print the message
+  -- put the cursor in the middle and print the message
   for row, data in ipairs(WonGameMsg) do
     io.write("\027[" .. row+10 .. ";22H")
     io.write(data)
@@ -256,14 +304,7 @@ function GameLoop()
   Winner = 0
 
   -- print out the whole map
-  for _, data in ipairs(Map) do
-    -- print walls as black boxes
-    local mapRow = data:gsub(BlockChar, BlockColor..BlockChar.."\027[0m")
-    -- print water blue
-    mapRow = mapRow:gsub(WaterChar, WaterColor..WaterChar.."\027[0m")
-    mapRow = mapRow:gsub(DeathChar, DeathColor..DeathChar.."\027[0m")
-    io.write(mapRow, "\n")
-  end
+  PrintMap()
 
   -- infinite loop
   while true do
@@ -298,14 +339,24 @@ function GameLoop()
       break
     end
 
+    -- check to see if player has ended the level or finished the game
     if string.find(string.sub(Map[PlayerPosY],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
     or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
     then
-      Winner = 1
+      Level = Level + 1
       WonGame()
-      Clear()
-      PrintBanner()
-      break
+      if Level == 3 then
+        Clear()
+        PrintBanner()
+        Winner = 1
+        break
+      else
+        Map = Levels[Level]
+        PlayerPosX = StartPosX
+        PlayerPosY = StartPosY
+        Clear()
+        PrintMap()
+      end
     end
 
   end
@@ -349,9 +400,11 @@ function MainMenu()
     elseif char == "l" then
       char = "\0"
       if menu[menuIndex] == "New Game" then
-        PlayerPosX = 4
-        PlayerPosY = 4
+        PlayerPosX = StartPosX
+        PlayerPosY = StartPosY
         Started = 1
+        Level = 1
+        Map = Levels[Level]
         GameLoop()
       elseif menu[menuIndex] == "Resume Game" then
         if Death == 1 then
