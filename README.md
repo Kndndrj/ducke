@@ -25,7 +25,7 @@ You can make your own custom levels for *Ducke*. All you need to do is follow th
 
 There are only a couple of rules to follow:
 1. Map size must be 100x30 characters (it will work with different sizes, but let's be consistent)
-2. There are 5 special characters:
+2. There are 4 special characters:
   * ":" - Block character (can't pass through)
   * "\*" - Death character (kills you on touch)
   * "~" - Water character (you aren't affected by gravity when you are touching it)
