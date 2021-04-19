@@ -6,6 +6,7 @@ local levels = require("levels")
 package.path = "rawterm/rawterm.lua"
 local rawterm = require("rawterm")
 
+-- global variables (these variables can be called from anywhere)
 BlockChar = ":"
 WaterChar = "~"
 DeathChar = "*"
@@ -27,7 +28,6 @@ Death = 0
 Winner = 0
 Started = 0
 Level = 1
--- level map
 Levels = levels.ListOfLevels
 for level in pairs(Levels) do
   NumberOfLevels = level
@@ -59,6 +59,19 @@ function Clear()
   end
   -- send cursor home
   io.write("\027[H")
+end
+
+function PrintMessage(message)
+  Clear()
+
+  -- put the cursor in the middle and print the message
+  for row, data in ipairs(message) do
+    local messageRow = data:gsub("#", "\027[034m#\027[0m")
+    io.write("\027[" .. row+10 .. ";22H")
+    io.write(messageRow)
+  end
+
+  io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H\n")
 end
 
 function PrintBanner()
@@ -95,36 +108,93 @@ function PrintMap()
   end
 end
 
-function WonGame()
+function ParseMenu(menuItem)
+  local character
+
+  if menuItem == "New Game" then
+    if Started == 1 and Death == 0 then
+      PrintMessage(graphics.NewGameMsg)
+      while true do
+        character = io.read(1) or "\0"
+        if character == "y" or character == "n" then
+          break
+        end
+      end
+      if character == "y" then
+        PlayerPosX = StartPosX
+        PlayerPosY = StartPosY
+        Started = 1
+        Level = 1
+        Map = Levels[Level]
+        GameLoop()
+      else
+        Clear()
+        PrintBanner()
+        return
+      end
+    else
+      PlayerPosX = StartPosX
+      PlayerPosY = StartPosY
+      Started = 1
+      Level = 1
+      Map = Levels[Level]
+      GameLoop()
+    end
+
+  elseif menuItem == "Resume Game" then
+    if Death == 1 then
+      io.write("You died, start a new game!\n")
+    elseif Winner == 1 then
+      io.write("You won! What else do you want?\n")
+    elseif Started == 0 then
+      io.write("Start the game first!\n")
+    else
+      GameLoop()
+    end
+
+  elseif menuItem == "Quit Game" then
+    PrintMessage(graphics.QuitMsg)
+    while true do
+      character = io.read(1) or "\0"
+      if character == "y" or character == "n" then
+        break
+      end
+    end
+    if character == "y" then
+      return "quit"
+    else
+      Clear()
+      PrintBanner()
+    end
+  end
+end
+
+function EndGame(reason)
+  local msg
   -- disable raw mode while waiting
   rawterm.disableRawMode()
   Clear()
-  -- put the cursor in the middle and print the message
-  for row, data in ipairs(graphics.WonGameMsg) do
-    io.write("\027[" .. row+10 .. ";28H")
-    io.write(data)
+
+  if reason == "gameover" then
+    Death = 1
+    msg = graphics.GameOverMsg
+  elseif reason == "gamewon" then
+    Winner = 1
+    Started = 0
+    msg = graphics.WonGameMsg
   end
-  io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H\n")
+  -- print the message
+  PrintMessage(msg)
   -- wait a few seconds
   Wait(2000)
+
+  Clear()
+  PrintBanner()
   -- enable raw mode again
   rawterm.enableRawMode({
     carriageOut = "\n",
     readtimeout = 2
   })
-end
-
-function PrintMessage(message)
-  Clear()
-
-  -- put the cursor in the middle and print the message
-  for row, data in ipairs(message) do
-    local messageRow = data:gsub("#", "\027[034m#\027[0m")
-    io.write("\027[" .. row+10 .. ";22H")
-    io.write(messageRow)
-  end
-
-  io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H\n")
 end
 
 function Gravity(character)
@@ -137,25 +207,6 @@ function Gravity(character)
     then
     PlayerPosY = PlayerPosY + 1
   end
-end
-
-function GameOver()
-  -- disable raw mode while waiting
-  rawterm.disableRawMode()
-  Clear()
-  -- put the cursor int the middle and print the message
-  for row, data in ipairs(graphics.GameOverMsg) do
-    io.write("\027[" .. row+10 .. ";25H")
-    io.write(data)
-  end
-  io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H\n")
-  -- wait a few seconds
-  Wait(2000)
-  -- enable raw mode again
-  rawterm.enableRawMode({
-    carriageOut = "\n",
-    readtimeout = 2
-  })
 end
 
 function DrawPlayer(position_y, position_x, direction)
@@ -218,6 +269,56 @@ function MovePlayer(character,direction)
   return direction
 end
 
+function IsPlayerDead()
+  if string.find(string.sub(Map[PlayerPosY],(PlayerPosX),(PlayerPosX+5)), DeathChar) ~= nil
+  or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), DeathChar) ~= nil
+  then
+    EndGame("gameover")
+    return 1
+  else
+    return 0
+  end
+end
+
+function HasPlayerWon()
+  local character
+
+  if string.find(string.sub(Map[PlayerPosY],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
+  or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
+  then
+    Level = Level + 1
+    if Level == NumberOfLevels+1 then
+      -- last level completed
+      EndGame("gamewon")
+      return 1
+    else
+      -- change the map and reset the position
+      Map = Levels[Level]
+      PlayerPosX = StartPosX
+      PlayerPosY = StartPosY
+      -- issue a prompt for the next level and change the map
+      PrintMessage(graphics.NextLevelMsg)
+      while true do
+        character = io.read(1) or "\0"
+        if character == "y" or character == "n" then
+          break
+        end
+      end
+      if character == "y" then
+        -- proceed
+        Clear()
+        PrintMap()
+        return 0
+      else
+        -- return to menu
+        Clear()
+        PrintBanner()
+        return 1
+      end
+    end
+  end
+end
+
 function GameLoop()
   -- clear terminal
   Clear()
@@ -235,7 +336,6 @@ function GameLoop()
 
   -- infinite loop
   while true do
-
     -- draw the player
     DrawPlayer(PlayerPosY,PlayerPosX,playerDir)
     -- put the cursor at the map's end
@@ -248,64 +348,20 @@ function GameLoop()
     if char == "p" then
       Clear()
       PrintBanner()
-      break
+      return
     end
-
     -- apply gravity
     Gravity(char)
-
     -- move the player, detect walls and change direction
     playerDir = MovePlayer(char,playerDir)
-
     -- kill player and return to menu
-    if string.find(string.sub(Map[PlayerPosY],(PlayerPosX),(PlayerPosX+5)), DeathChar) ~= nil
-    or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), DeathChar) ~= nil
-    then
-      Death = 1
-      GameOver()
-      Clear()
-      PrintBanner()
-      break
+    if IsPlayerDead() == 1 then
+      return
     end
-
     -- check to see if player has ended the level or finished the game
-    if string.find(string.sub(Map[PlayerPosY],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
-    or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), WinChar) ~= nil
-    then
-      Level = Level + 1
-      if Level == NumberOfLevels+1 then
-        -- last level completed
-        Winner = 1
-        WonGame()
-        Clear()
-        PrintBanner()
-        break
-      else
-        -- change the map and reset the position
-        Map = Levels[Level]
-        PlayerPosX = StartPosX
-        PlayerPosY = StartPosY
-        -- issue a prompt for the next level and change the map
-        PrintMessage(graphics.NextLevelMsg)
-        while true do
-          char = io.read(1) or "\0"
-          if char == "y" or char == "n" then
-            break
-          end
-        end
-        if char == "y" then
-          -- proceed
-          Clear()
-          PrintMap()
-        else
-          -- return to menu
-          Clear()
-          PrintBanner()
-          break
-        end
-      end
+    if HasPlayerWon() == 1 then
+      return
     end
-
   end
 end
 
@@ -319,6 +375,7 @@ function MainMenu()
   }
   local menuIndex = 2
   local char
+  local action
 
   -- clear terminal
   Clear()
@@ -345,38 +402,9 @@ function MainMenu()
     elseif char == "k" and menuIndex > 2 then
       menuIndex = menuIndex - 1
     elseif char == "l" then
-      char = "\0"
-      if menu[menuIndex] == "New Game" then
-        PlayerPosX = StartPosX
-        PlayerPosY = StartPosY
-        Started = 1
-        Level = 1
-        Map = Levels[Level]
-        GameLoop()
-      elseif menu[menuIndex] == "Resume Game" then
-        if Death == 1 then
-          io.write("You died, start a new game!\n")
-        elseif Winner == 1 then
-          io.write("You won! What else do you want?\n")
-        elseif Started == 0 then
-          io.write("Start the game first!\n")
-        else
-          GameLoop()
-        end
-      elseif menu[menuIndex] == "Quit Game" then
-        PrintMessage(graphics.QuitMsg)
-        while true do
-          char = io.read(1) or "\0"
-          if char == "y" or char == "n" then
-            break
-          end
-        end
-        if char == "y" then
-          break
-        else
-          Clear()
-          PrintBanner()
-        end
+      action = ParseMenu(menu[menuIndex])
+      if action == "quit" then
+        return
       end
     end
   end

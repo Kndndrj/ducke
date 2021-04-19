@@ -57,13 +57,25 @@ WonGameMsg = {
   "   \\_/\\_/ \\___|_|_|  \\__,_|\\___/|_| |_|\\___(_)",
 }
 
+NewGameMsg = {
+  "#######################################################",
+  "#                                                     #",
+  "#           Game is already running, do you           #",
+  "#           really want to start a new one?           #",
+  "#                                                     #",
+  "#             y - Sure!                               #",
+  "#             n - Return to menu.                     #",
+  "#                                                     #",
+  "#######################################################",
+}
+
 NextLevelMsg = {
   "#######################################################",
   "#                                                     #",
   "#                  Level completed!                   #",
   "#                                                     #",
-  "#             y - proceed to the next level           #",
-  "#             n - return to menu                      #",
+  "#             y - Proceed to the next level!          #",
+  "#             n - Return to menu.                     #",
   "#                                                     #",
   "#######################################################",
 }
@@ -73,8 +85,8 @@ QuitMsg = {
   "#                                                     #",
   "#             Do you really want to quit?             #",
   "#                                                     #",
-  "#               y - end my duck career                #",
-  "#               n - go back                           #",
+  "#             y - End my duck career!                 #",
+  "#             n - Return to menu.                     #",
   "#                                                     #",
   "#######################################################",
 }
