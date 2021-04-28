@@ -30,6 +30,11 @@ There are only a couple of rules to follow:
   * "\*" - Death character (kills you on touch)
   * "~" - Water character (you aren't affected by gravity when you are touching it)
   * "w" - Win character (go to the next level, if the level is the last level, you win the game)
+  * objective characters:
+    * "f" - First objective.
+    * "s" - Second objective.
+    * "t" - Third objective.
+The player must pick up the objectives from first to last. When all objectives are picked up, the player can proceed to the next level.
 
 If you happen to create a new map, I will be happy to see your pull request!
 

@@ -16,6 +16,7 @@ BlockColor = "\027[1;032m"
 DeathColor = "\027[1;031m"
 WinColor = "\027[035;45m"
 PlayerColor = "\027[1;033m"
+ObjectiveColor = "\027[1;035m"
 StartPosY = 29
 StartPosX = 1
 PlayerPosY = StartPosY
@@ -27,6 +28,7 @@ MapWidth = 100
 Death = 0
 Winner = 0
 Started = 0
+Objectives = { "f", "s", "t", "endobj" }
 Level = 1
 Levels = levels.ListOfLevels
 for level in pairs(Levels) do
@@ -104,6 +106,11 @@ function PrintMap()
     mapRow = mapRow:gsub(DeathChar, DeathColor..DeathChar.."\027[0m")
     -- ...win
     mapRow = mapRow:gsub(WinChar, WinColor..WinChar.."\027[0m")
+    -- change objectives to their numbers
+    for i in pairs(Objectives) do
+      mapRow = mapRow:gsub(Objectives[i], ObjectiveColor..i.."\027[0m")
+    end
+
     io.write(mapRow, "\n")
   end
 end
@@ -210,13 +217,28 @@ function Gravity(character)
 end
 
 function DrawPlayer(position_y, position_x, direction)
-  -- reprint the map after the player water character stays the same color
+  -- reprint the map after the player
   local playerRow1 = string.sub(Map[LastPlayerPosY],LastPlayerPosX,(LastPlayerPosX+5))
   local playerRow2 = string.sub(Map[(LastPlayerPosY+1)],LastPlayerPosX,(LastPlayerPosX+5))
+  -- water character stays the same color
+  playerRow1 = playerRow1:gsub(WaterChar, WaterColor..WaterChar.."\027[0m")
+  playerRow2 = playerRow2:gsub(WaterChar, WaterColor..WaterChar.."\027[0m")
+  -- win char stays the same if picked up before completing objectives
+  playerRow1 = playerRow1:gsub(WinChar, WinColor..WinChar.."\027[0m")
+  playerRow2 = playerRow2:gsub(WinChar, WinColor..WinChar.."\027[0m")
+  -- hide object characters on touch
+  for i in pairs(Objectives) do
+    if i <= CurrentObjective then
+      playerRow1 = playerRow1:gsub(Objectives[i], " ")
+      playerRow2 = playerRow2:gsub(Objectives[i], " ")
+    end
+  end
+
+  -- print map
   io.write("\027[" .. LastPlayerPosY .. ";" .. LastPlayerPosX .. "H")
-  io.write(playerRow1:gsub(WaterChar, WaterColor..WaterChar.."\027[0m"), "\n")
+  io.write(playerRow1, "\n")
   io.write("\027[" .. (LastPlayerPosY+1) .. ";" .. LastPlayerPosX .. "H")
-  io.write(playerRow2:gsub(WaterChar, WaterColor..WaterChar.."\027[0m"), "\n")
+  io.write(playerRow2, "\n")
 
   -- remember position for map reprint
   LastPlayerPosY = position_y
@@ -294,6 +316,8 @@ function HasPlayerWon()
     else
       -- change the map and reset the position
       Map = Levels[Level]
+      NumOfObjectives = CountObjectives(Map, Objectives)
+      CurrentObjective = 0
       PlayerPosX = StartPosX
       PlayerPosY = StartPosY
       -- issue a prompt for the next level and change the map
@@ -319,6 +343,30 @@ function HasPlayerWon()
   end
 end
 
+function CheckObjectives(objectiveList, objectiveNum, allObjectives)
+  if string.find(string.sub(Map[PlayerPosY],(PlayerPosX),(PlayerPosX+5)), objectiveList[objectiveNum+1]) ~= nil
+  or string.find(string.sub(Map[PlayerPosY+1],(PlayerPosX),(PlayerPosX+5)), objectiveList[objectiveNum+1]) ~= nil
+  then
+    -- increment objectives
+    if objectiveNum < allObjectives then
+      objectiveNum = objectiveNum + 1
+    end
+  end
+  return objectiveNum
+end
+
+function CountObjectives(map, objectiveList)
+  local count = 0
+  for _, line in pairs(map) do
+    for i in pairs(objectiveList) do
+      if string.find(line, objectiveList[i]) ~= nil then
+        count = count + 1
+      end
+    end
+  end
+  return count
+end
+
 function GameLoop()
   -- clear terminal
   Clear()
@@ -326,6 +374,10 @@ function GameLoop()
   --direction of the player (1-right, 0-left)
   local playerDir = 1
   local char
+
+  -- none out of n objectives is completed
+  CurrentObjective = 0
+  NumOfObjectives = CountObjectives(Map, Objectives)
 
   -- player is alive and didn't win yet
   Death = 0
@@ -358,10 +410,22 @@ function GameLoop()
     if IsPlayerDead() == 1 then
       return
     end
-    -- check to see if player has ended the level or finished the game
-    if HasPlayerWon() == 1 then
-      return
+    -- check for completed objectives
+    CurrentObjective = CheckObjectives(Objectives, CurrentObjective, NumOfObjectives)
+    if CurrentObjective == NumOfObjectives then
+      -- check to see if player has ended the level or finished the game
+      if HasPlayerWon() == 1 then
+        return
+      end
+      -- print objective info
+      if NumOfObjectives ~= 0 then
+        io.write("\n\n\027[1;035mAll objectives completed\027[0m")
+      end
+    else
+      -- print objective info
+      io.write("\n\nCurrent objective:\027[1;035m"..(CurrentObjective+1).."\027[0m/"..(NumOfObjectives))
     end
+
   end
 end
 
