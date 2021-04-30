@@ -231,6 +231,9 @@ function DrawPlayer(position_y, position_x, direction)
     if i <= CurrentObjective then
       playerRow1 = playerRow1:gsub(Objectives[i], " ")
       playerRow2 = playerRow2:gsub(Objectives[i], " ")
+    else
+      playerRow1 = playerRow1:gsub(Objectives[i], ObjectiveColor..i.."\027[0m")
+      playerRow2 = playerRow2:gsub(Objectives[i], ObjectiveColor..i.."\027[0m")
     end
   end
 
@@ -320,7 +323,7 @@ function HasPlayerWon()
       CurrentObjective = 0
       PlayerPosX = StartPosX
       PlayerPosY = StartPosY
-      -- issue a prompt for the next level and change the map
+      -- issue a prompt for the next level
       PrintMessage(graphics.NextLevelMsg)
       while true do
         character = io.read(1) or "\0"
@@ -417,13 +420,19 @@ function GameLoop()
       if HasPlayerWon() == 1 then
         return
       end
-      -- print objective info
+    end
+
+    -- print objective info (has to be seperate condition, otherwise it breaks on next level)
+    if CurrentObjective == NumOfObjectives then
       if NumOfObjectives ~= 0 then
-        io.write("\n\n\027[1;035mAll objectives completed\027[0m")
+        io.write("\027[" .. (MapHeight+2) .. ";" .. 0 .. "H")
+        io.write(ObjectiveColor .. "All objectives completed\027[0m")
+        io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H")
       end
     else
-      -- print objective info
-      io.write("\n\nCurrent objective:\027[1;035m"..(CurrentObjective+1).."\027[0m/"..(NumOfObjectives))
+      io.write("\027[" .. (MapHeight+2) .. ";" .. 0 .. "H")
+      io.write("Current objective:" .. ObjectiveColor .. (CurrentObjective+1) .. "\027[0m/" .. NumOfObjectives)
+      io.write("\027[" .. MapHeight .. ";" .. (MapWidth+1) .. "H")
     end
 
   end
