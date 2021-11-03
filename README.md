@@ -16,7 +16,7 @@ This game is designed in a way that every game element is defined by the map. If
 
 That's it, you are ready to play! Now pull out your terminal, `cd` into this repository and run:
 ```bash
-$ ./ducke
+$ ./ducke.sh
 ```
 If it doesn't work the first time, check if the file has the appropriate permissions ( and then `chmod`...).
 
