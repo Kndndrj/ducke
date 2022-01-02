@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cd ducke/
+cd "$(dirname $0)/ducke"
 
 luajit ducke.lua
 
